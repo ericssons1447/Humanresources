@@ -1,0 +1,217 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum DocumentType {
+  RESUME
+  COVER_LETTER
+  SUPPORTING
+  JOB_DESCRIPTION
+}
+
+enum InterviewStatus {
+  NOT_STARTED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum RecommendationType {
+  STRONGLY_RECOMMEND_INTERVIEW
+  RECOMMEND_INTERVIEW
+  HOLD_FOR_REVIEW
+  NOT_STRONG_FIT
+  CONSIDER_ALTERNATE_ROLE
+  STRONG_FINALIST
+  PROCEED_TO_OFFER_REVIEW
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      String
+  createdAt DateTime @default(now())
+
+  interviews InterviewSession[]
+  createdJobs Job[] @relation("JobCreator")
+}
+
+model Job {
+  id                         String   @id @default(cuid())
+  title                      String
+  department                 String?
+  description                String
+  requiredQualificationsJson String
+  preferredQualificationsJson String
+  skillsJson                 String
+  experienceRequirements     String?
+  educationRequirements      String?
+  certificationsJson         String
+  responsibilitiesJson       String
+  softSkillsJson             String
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  createdById String?
+  createdBy   User? @relation("JobCreator", fields: [createdById], references: [id])
+
+  candidates Candidate[]
+  documents  CandidateDocument[]
+}
+
+model Candidate {
+  id                String   @id @default(cuid())
+  fullName          String
+  email             String?
+  phone             String?
+  location          String?
+  positionApplied   String
+  applicationDate   DateTime @default(now())
+  interviewStatus   InterviewStatus @default(NOT_STARTED)
+  interviewRound    Int      @default(0)
+  interviewerAssigned String?
+  interviewScore    Float?
+  finalDecision     String?
+  recruiterNotes    String?
+  hiringManagerNotes String?
+  nextStep          String?
+  decisionDate      DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  jobId String
+  job   Job @relation(fields: [jobId], references: [id])
+
+  documents        CandidateDocument[]
+  parsedProfile    ParsedCandidateProfile?
+  scorecard        Scorecard?
+  interviewSessions InterviewSession[]
+  recommendations  Recommendation[]
+  auditTrails      AuditTrail[]
+}
+
+model CandidateDocument {
+  id           String   @id @default(cuid())
+  candidateId  String?
+  jobId        String?
+  type         DocumentType
+  fileName     String
+  filePath     String
+  mimeType     String?
+  extractedText String
+  createdAt    DateTime @default(now())
+
+  candidate Candidate? @relation(fields: [candidateId], references: [id])
+  job       Job?       @relation(fields: [jobId], references: [id])
+}
+
+model ParsedCandidateProfile {
+  id                        String   @id @default(cuid())
+  candidateId               String   @unique
+  educationJson             String
+  certificationsJson        String
+  workHistoryJson           String
+  skillsJson                String
+  yearsRelevantExperience   Float
+  roleAlignedKeywordsJson   String
+  notableAchievementsJson   String
+  gapsOrUnclearItemsJson    String
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+}
+
+model Scorecard {
+  id                              String   @id @default(cuid())
+  candidateId                     String   @unique
+  minimumQualificationsScore      Int
+  preferredQualificationsScore    Int
+  experienceRelevanceScore        Int
+  skillsRelevanceScore            Int
+  educationCertRelevanceScore     Int
+  communicationDocumentQualityScore Int
+  overallFitScore                 Int
+  strengthsSummary                String
+  concernsSummary                 String
+  explanationJson                 String
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+}
+
+model InterviewQuestion {
+  id                 String   @id @default(cuid())
+  candidateId        String
+  category           String
+  question           String
+  rationale          String
+  strongAnswerSignal String
+  redFlagSignal      String
+  createdAt          DateTime @default(now())
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+  responses InterviewResponse[]
+}
+
+model InterviewSession {
+  id            String   @id @default(cuid())
+  candidateId   String
+  interviewerId String?
+  round         Int
+  summary       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  interviewer User?     @relation(fields: [interviewerId], references: [id])
+  responses   InterviewResponse[]
+}
+
+model InterviewResponse {
+  id                  String   @id @default(cuid())
+  interviewSessionId  String
+  interviewQuestionId String
+  answerNotes         String?
+  score               Int?
+  confidenceLevel     Int?
+  followUpNeeded      Boolean  @default(false)
+  interviewerComments String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  interviewSession  InterviewSession @relation(fields: [interviewSessionId], references: [id])
+  interviewQuestion InterviewQuestion @relation(fields: [interviewQuestionId], references: [id])
+}
+
+model Recommendation {
+  id            String   @id @default(cuid())
+  candidateId   String
+  type          RecommendationType
+  rationale     String
+  isManualOverride Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+}
+
+model AuditTrail {
+  id          String   @id @default(cuid())
+  candidateId String
+  action      String
+  field       String
+  oldValue    String?
+  newValue    String?
+  actor       String
+  createdAt   DateTime @default(now())
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+}
